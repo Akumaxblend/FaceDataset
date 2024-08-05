@@ -1,0 +1,67 @@
+import bpy
+import numpy
+import bmesh
+from bpy import context
+import bpy_extras
+import os
+
+scene = bpy.data.scenes[0]
+resolution_x = scene.render.resolution_x
+resolution_y = scene.render.resolution_y
+
+def get_modified_mesh(ob, frame, cage=False):
+    bpy.context.scene.frame_set(frame)
+    bm = bmesh.new()
+    bm.from_object(
+            ob,
+            context.evaluated_depsgraph_get(),
+            cage=cage,
+            )
+    #bm.transform(ob.matrix_world)
+    me = bpy.data.meshes.new("Deformed")
+    bm.to_mesh(me)
+    return me
+
+def get_screen_coordinates(camera, world_coords):
+    
+    scene = bpy.data.scenes[0]
+    coords = bpy_extras.object_utils.world_to_camera_view(scene, camera, world_coords)
+    # Translation to standard image coordinates with (0,0) at the top left corner 
+    coords.y = 1 - coords.y
+    # Absolute screen coordinates 
+    coords.x *= resolution_x
+    coords.y *= resolution_y
+    return (coords.x, coords.y)
+
+def export_all_ground_truth(obj, seed, directory):
+
+    frames_screen = []
+    frames_world = []
+    points_screen = []
+    points_world = []
+    visible_points = []
+    
+    camera = bpy.data.objects["Camera"]
+
+    print('###   Exporting vertices positions   ###')
+    current_frame = bpy.data.scenes[0].frame_current # Will be used later on to set the output directory
+    for i in range (current_frame, current_frame + 1):
+        tmp = get_modified_mesh(obj, i)
+        for vert in tmp.vertices:
+            world_coords = obj.matrix_world @ vert.co
+            camera_relative_coords = world_coords - camera.matrix_world.translation
+            screen_coords = get_screen_coordinates(camera, world_coords)
+            points_screen.append(screen_coords)
+            points_world.append(camera_relative_coords)
+        frames_screen.append(points_screen)
+        frames_world.append(points_world)
+        points_screen = []
+        points_world = []
+
+    out_dir = directory+f'/{seed:06}'+"/ground_truth/"
+    os.makedirs(out_dir, exist_ok=True)
+
+    with open(out_dir+"vertices_positions.npy", 'wb') as file :
+        numpy.savez(file, screen_positions=frames_screen, world_positions=frames_world)
+        
+export_all_ground_truth(bpy.data.objects["Cube"], 1, "/s/prods/research/io/in/from_prod/face_dataset/output/tmp/")

@@ -1,0 +1,27 @@
+import numpy as np
+import random
+import bpy
+
+def random_vector_normalized(dimension, adjustment):
+    d = dimension
+    inv_d = 1.0 / d
+
+    for i in range(0,d):
+        gauss = np.random.normal(size=d)
+        length = np.linalg.norm(gauss)
+        if length == 0.0:
+            vec = gauss
+        else:
+            r = np.random.rand() ** inv_d
+            vec = np.multiply(gauss, r / length)
+    return vec * adjustment
+
+def change_face(dimension, adjustment, obj):
+    sk = obj.data.shape_keys.key_blocks
+
+    vec = random_vector_normalized(dimension, adjustment)
+    for i in range (0,100):
+        name = f'id{i:03}_'
+        sk[name].value = vec[i]
+        
+change_face(100, 0.85, bpy.data.objects["Head"])
