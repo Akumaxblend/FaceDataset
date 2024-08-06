@@ -181,26 +181,31 @@ class FaceInpainterPlugin(PluginCommandLineNode):
 
         self.commandLine = 'python '+self.faceInpainterDirectory.as_posix() +' --inputDir {3dRenderDirectoryValue} --eyebrowsProbability {eyebrowsProbabilityValue} --eyebrowsDenoise {eyebrowsDenoiseValue} --hairProbability {hairProbabilityValue} --hairDenoise {hairDenoiseValue} --beardProbability {beardProbabilityValue} --beardDenoise {beardDenoiseValue} --clothProbability {clothProbabilityValue} --clothDenoise {clothDenoiseValue} --outputDir {outputFolderValue} --debug {debugInpaintValue} --seed '+str(start)+' --batch {batchValue}'
 
-        stableCmd = ["/s/apps/users/vernam/stable_diffusion/stable-diffusion-webui/webui.sh", "--api", "--api-server-stop"] # The --api-server-stop enables the stop route so we can POST /sdapi/v1/server-kill to kill the server
-        stableServerProc = psutil.Popen(stableCmd, cwd=chunk.node.internalFolder)
-
-        import urllib3 # Importing here to ensure being in the conda environment
-
-        while(isServerOpen is False):
-            try:
-                chunk.logger.info(urllib3.request(url="http://127.0.0.1:7860", method="GET", retries=False))
-                chunk.logger.info("###   Stable diffusion started successfuly!   ###")
-                time.sleep(5) # Time margin tu ensure non-cutting the loading process
-                isServerOpen = True
-            except:
-                chunk.logger.info("###   Waiting for stable diffusion to launch   ###")
-                time.sleep(5)
-
-        super().processChunk(chunk)
+        stableCmd = ["/s/apps/users/vernam/stable_diffusion/stable-diffusion-webui/webui.sh", "--api", "--api-server-stop", "--skip-torch-cuda-test"] # The --api-server-stop enables the stop route so we can POST /sdapi/v1/server-kill to kill the server
         try:
-            urllib3.request(url="http://127.0.0.1:7860/sdapi/v1/server-kill", method="POST") # Ensures the server is killed by api
-        except:
-            chunk.logger.info("###   Apparent issue with server closing but successfuly closed ?   ###")
-        stableServerProc.kill()
+            stableServerProc = psutil.Popen(stableCmd, cwd=chunk.node.internalFolder)
+
+            import urllib3 # Importing here to ensure being in the conda environment
+
+            while(isServerOpen is False):
+                try:
+                    chunk.logger.info(urllib3.request(url="http://127.0.0.1:7860", method="GET", retries=False))
+                    chunk.logger.info("###   Stable diffusion started successfuly!   ###")
+                    time.sleep(5) # Time margin to ensure non-cutting the loading process
+                    isServerOpen = True
+                except:
+                    chunk.logger.info("###   Waiting for stable diffusion to launch   ###")
+                    time.sleep(5)
+
+            super().processChunk(chunk)
+            try:
+                urllib3.request(url="http://127.0.0.1:7860/sdapi/v1/server-kill", method="POST") # Ensures the server is killed by api
+            except:
+                chunk.logger.info("###   Apparent issue with server closing but successfuly closed ?   ###")
+            stableServerProc.kill()
+        except psutil.Error:
+            chunk.logger.error("###   Issue with stable diffusion starting   ###")
+            chunk.logManager.stop()
+            return False
 
     # /s/apps/users/multiview/meshroomVideoUtils/develop:/s/prods/research/io/in/from_prod/face_dataset

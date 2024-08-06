@@ -2,6 +2,7 @@ __version__ = "1.0"
 
 from meshroom.core import desc
 from pathlib import Path
+import os
 from meshroom.core.plugin import PluginCommandLineNode, EnvType
 
 class FaceCheckPlugin(PluginCommandLineNode):
@@ -17,7 +18,7 @@ class FaceCheckPlugin(PluginCommandLineNode):
     # parallelization = desc.Parallelization(blockSize=50)
 
     envType = EnvType.VENV
-    envFile = "/s/prods/research/io/in/from_prod/face_dataset/nodes/requirements.txt"
+    envFile = os.path.join(os.path.dirname(__file__), "requirements.txt")
     
     # commandLine = "rez env blender -c 'blender -b {blendDirectoryValue} -P " + blenderRendererDirectory.as_posix() + " -P " + positionsExporterDirectory.as_posix() + " -P " + blendshapesExporterDirectory.as_posix() + " -- {seedValue} {outputFolderValue} {minFovValue} {maxFovValue} {batchValue}'" 
     # > /dev/null 2>&1'"
@@ -28,7 +29,7 @@ class FaceCheckPlugin(PluginCommandLineNode):
     inputs = [
         desc.File(
             name="inputImage",
-            label="Inpainted File",
+            label="Inpaint folder",
             description='''path to the inpainted files''',
             value="",
             uid=[],
@@ -63,9 +64,18 @@ class FaceCheckPlugin(PluginCommandLineNode):
         desc.FloatParam(
             name='threshold',
             label='Monkey Face Threshold',
-            description='''multiplier for morphology range''',
+            description='''Use 0 for all the points, and >0.5 for only monkey face vertices''',
             value=0.5,
             range=(0.0, 1.0, 0.1),
+            uid=[0],
+            group=""
+        ),
+        desc.FloatParam(
+            name='density',
+            label='Density',
+            description='''Proportion of points to draw''',
+            value=1.0,
+            range=(0.001, 1.0, 0.05),
             uid=[0],
             group=""
         ),
@@ -74,7 +84,8 @@ class FaceCheckPlugin(PluginCommandLineNode):
             label='Only Visible',
             description='''Use this option to display only non-culled points''',
             value=False,
-            uid=[],
+            uid=[0],
+            group=""
         ),
 
     ]
@@ -110,6 +121,6 @@ class FaceCheckPlugin(PluginCommandLineNode):
         if(start + chunkSize > chunk.node.batch.value + seed):
             chunkSize = chunk.node.batch.value + seed - start
 
-        self.commandLine = "python " + self.pointsDrawerDirectory.as_posix() + " --seed " + str(start) + " --batch {batchValue} --inpaintDir {inputImageValue} --gtDir {groundTruthValue} --outPutDir {outputFolderValue} --threshold {thresholdValue} --visibleOnly {visibleOnlyValue}"
+        self.commandLine = "python " + self.pointsDrawerDirectory.as_posix() + " --seed " + str(start) + " --batch {batchValue} --inpaintDir {inputImageValue} --gtDir {groundTruthValue} --outputDir {outputFolderValue} --threshold {thresholdValue} --density {densityValue} --visibleOnly {visibleOnlyValue}"
         
         super().processChunk(chunk)

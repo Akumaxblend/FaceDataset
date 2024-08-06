@@ -16,7 +16,9 @@ parser.add_argument('--outputDir',  type=str,   required=True,    help='Output D
 parser.add_argument('--seed',  type=int,   required=True,    help='Start Frame')
 parser.add_argument('--batch',  type=int,   required=True,    help='Total Number Frame')
 parser.add_argument('--threshold',  type=float,   required=True,    help='Threshold Under Which A Vertex Is Not Considered In The Monkey Face')
+parser.add_argument('--density',  type=float,   required=True,    help='Proportion of points to draw')
 parser.add_argument('--visibleOnly', type=str, default="True", help='Use this flag to check only non-culled points')
+
 
 args = parser.parse_args()
 
@@ -27,6 +29,7 @@ seed = args.seed
 batch = args.batch
 threshold = args.threshold
 visible_only = args.visibleOnly
+density = args.density
 
 for i in range(seed, seed + batch):
     coordspath 	= f"{in_gt_dir}/{i:06}/ground_truth/vertices_positions.npy"
@@ -42,12 +45,13 @@ for i in range(seed, seed + batch):
     image_top = Image.new('RGBA', (IMG_WIDTH, IMG_WIDTH), WHITE)
     draw = ImageDraw.Draw(image_top)
 
-    for i in range (0, len(screen_positions[0])):
-        point = screen_positions[0][i]
-        if (visible_only == "True"):    visibility = visibilities[i]
-        else:   visibility = True
-        if(indices[i] >= threshold and visibility):
-            draw.point([point[0], point[1]], fill=(0,255,0))
+    for p in range (0, len(screen_positions[0])):
+        if p % (1/density) == 0:
+            point = screen_positions[0][p]
+            if (visible_only == "True"):    visibility = visibilities[p]
+            else:   visibility = True
+            if(indices[p] >= threshold and visibility):
+                draw.point([point[0], point[1]], fill=(0,255,0))
 
     image_back.paste(image_top, (0,0), image_top)
     image_back.save(out_image_dir+f'/face_check_{i:06}.png', "png")
