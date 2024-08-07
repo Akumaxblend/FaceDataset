@@ -187,22 +187,28 @@ class FaceInpainterPlugin(PluginCommandLineNode):
 
             import urllib3 # Importing here to ensure being in the conda environment
 
-            while(isServerOpen is False):
+            ttl = 24 # Time To Live : number of tries to connect to the server. 24 = 2 minutes.
+
+            while(isServerOpen is False and ttl > 0):
                 try:
                     chunk.logger.info(urllib3.request(url="http://127.0.0.1:7860", method="GET", retries=False))
                     chunk.logger.info("###   Stable diffusion started successfuly!   ###")
                     time.sleep(5) # Time margin to ensure non-cutting the loading process
                     isServerOpen = True
                 except:
-                    chunk.logger.info("###   Waiting for stable diffusion to launch   ###")
+                    ttl -= 1
+                    chunk.logger.info(f"###   Waiting for stable diffusion to launch (ttl={ttl})   ###")
                     time.sleep(5)
-
-            super().processChunk(chunk)
-            try:
-                urllib3.request(url="http://127.0.0.1:7860/sdapi/v1/server-kill", method="POST") # Ensures the server is killed by api
-            except:
-                chunk.logger.info("###   Apparent issue with server closing but successfuly closed ?   ###")
-            stableServerProc.kill()
+            if ttl <= 0:  
+                chunk.logger.info("###   Time To Live expired but stable diffusion server is not open. Aborting.   ###")
+                stableServerProc.kill()
+            else:
+                super().processChunk(chunk)
+                try:
+                    urllib3.request(url="http://127.0.0.1:7860/sdapi/v1/server-kill", method="POST") # Ensures the server is killed by api
+                except:
+                    chunk.logger.info("###   Apparent issue with server closing but successfuly closed ?   ###")
+                stableServerProc.kill()
         except psutil.Error:
             chunk.logger.error("###   Issue with stable diffusion starting   ###")
             chunk.logManager.stop()
