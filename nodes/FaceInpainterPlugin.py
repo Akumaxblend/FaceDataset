@@ -7,9 +7,11 @@ import os
 from pathlib import Path
 import psutil
 import time
+import subprocess
 
 
 class FaceInpainterPlugin(PluginCommandLineNode):
+#class FaceInpainterPlugin(desc.CommandLineNode):
     # On Windows, needs to avoid backslash for command line execution (as_posix needed)
 
     # Get python environnement or global python
@@ -39,7 +41,7 @@ class FaceInpainterPlugin(PluginCommandLineNode):
         ),
         desc.IntParam(
             name='seed',
-            label='Seed',
+            label='Start Frame',
             description='''Number of the first frame you want to inpaint''',
             value=1,
             range=(0, 1048574, 1),
@@ -127,6 +129,15 @@ class FaceInpainterPlugin(PluginCommandLineNode):
             uid=[0],
             group=""
         ),
+        desc.IntParam(
+            name='ttl',
+            label='Retries',
+            description='''Number of retries while waiting for stable diffusion server to open (1 try = 5 seconds)''',
+            value=24,
+            range=(0, 1048574, 1),
+            uid=[0],
+            group=""
+        ),
         desc.BoolParam(
             name='debugInpaint',
             label='Inpaint Debug',
@@ -181,15 +192,17 @@ class FaceInpainterPlugin(PluginCommandLineNode):
 
         self.commandLine = 'python '+self.faceInpainterDirectory.as_posix() +' --inputDir {3dRenderDirectoryValue} --eyebrowsProbability {eyebrowsProbabilityValue} --eyebrowsDenoise {eyebrowsDenoiseValue} --hairProbability {hairProbabilityValue} --hairDenoise {hairDenoiseValue} --beardProbability {beardProbabilityValue} --beardDenoise {beardDenoiseValue} --clothProbability {clothProbabilityValue} --clothDenoise {clothDenoiseValue} --outputDir {outputFolderValue} --debug {debugInpaintValue} --seed '+str(start)+' --batch {batchValue}'
 
-        stableCmd = ["/s/apps/users/vernam/stable_diffusion/stable-diffusion-webui/webui.sh", "--api", "--api-server-stop", "--skip-torch-cuda-test"] # The --api-server-stop enables the stop route so we can POST /sdapi/v1/server-kill to kill the server
+        # stableCmd = ["/s/apps/users/vernam/stable_diffusion/stable-diffusion-webui/webui.sh", "--api", "--api-server-stop", "--skip-torch-cuda-test"] # The --api-server-stop enables the stop route so we can POST /sdapi/v1/server-kill to kill the server
+        stableCmd = "/s/apps/users/vernam/stable_diffusion/stable-diffusion-webui/webui.sh --api --api-server-stop --skip-torch-cuda-test"
         try:
-            stableServerProc = psutil.Popen(stableCmd, cwd=chunk.node.internalFolder)
+            # stableServerProc = psutil.Popen(stableCmd, cwd=chunk.node.internalFolder)
+            stableServerProc = subprocess.Popen("exec " + stableCmd, stdout=subprocess.PIPE, shell=True)
 
             import urllib3 # Importing here to ensure being in the conda environment
 
-            ttl = 24 # Time To Live : number of tries to connect to the server. 24 = 2 minutes.
+            ttl = chunk.node.ttl.value # Time To Live : number of tries to connect to the server. 24 = 2 minutes.
 
-            while(isServerOpen is False and ttl > 0):
+            while(isServerOpen is False and stableServerProc.poll() is None and ttl > 0):
                 try:
                     chunk.logger.info(urllib3.request(url="http://127.0.0.1:7860", method="GET", retries=False))
                     chunk.logger.info("###   Stable diffusion started successfuly!   ###")
@@ -202,13 +215,27 @@ class FaceInpainterPlugin(PluginCommandLineNode):
             if ttl <= 0:  
                 chunk.logger.info("###   Time To Live expired but stable diffusion server is not open. Aborting.   ###")
                 stableServerProc.kill()
+                raise RuntimeError("Time To Live expired but stable diffusion server is not open.")
+                self.upgradeStatusTo(0)
+                # chunk._subprocess.returncode = 12
+
+            elif stableServerProc.poll() is not None:
+                # The process returns an error code (instead of None) and is terminated
+                chunk.logger.error("###   Failed to start stable diffusion server. Aborting.   ###")
+                outs, errs = stableServerProc.communicate()
+                chunk.logger.error(outs)
+                chunk.logger.error(errs)
+                raise RuntimeError("Failed to start stable diffusion server.")
+                # self.upgradeStatusTo(0)
+                # chunk._subprocess.returncode = 12
+
             else:
                 super().processChunk(chunk)
                 try:
                     urllib3.request(url="http://127.0.0.1:7860/sdapi/v1/server-kill", method="POST") # Ensures the server is killed by api
                 except:
-                    chunk.logger.info("###   Apparent issue with server closing but successfuly closed ?   ###")
-                stableServerProc.kill()
+                    chunk.logger.debug("###   Apparent issue with server closing but successfuly closed ?   ###")
+                    stableServerProc.kill()
         except psutil.Error:
             chunk.logger.error("###   Issue with stable diffusion starting   ###")
             chunk.logManager.stop()

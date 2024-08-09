@@ -108,15 +108,16 @@ def export_shape_keys(obj, seed, directory):
     with open(out_dir+"blendshapes.json", "w") as file :
         json.dump(json_data, file, indent = 4)
 
-def export_vertices_weight(obj, group_name, out_dir):
+def export_vertices_weight(obj, group_name, out_dir, indexes):
     verts = obj.data.vertices
     weighted_indices = []
     for v in verts:
-        weighted_indices.append(obj.vertex_groups[group_name].weight(v.index))
+        if v.index in indexes:
+            weighted_indices.append(obj.vertex_groups[group_name].weight(v.index))
     with open(out_dir+"monkey_face_vertices.npy", 'wb') as file :
         numpy.save(file, weighted_indices)
 
-def export_all_ground_truth(obj, seed, directory):
+def export_all_ground_truth(obj, seed, directory, indexes):
 
     # Geometry declarations
     eye_name = "eye_right"
@@ -139,12 +140,13 @@ def export_all_ground_truth(obj, seed, directory):
     for i in range (current_frame, current_frame + 1):
         tmp = get_modified_mesh(obj, i)
         for vert in tmp.vertices:
-            world_coords = obj.matrix_world @ vert.co
-            camera_relative_coords = camera.matrix_world.normalized().inverted() @ world_coords
-            visible_points.append(is_vertex_visible(obj, world_coords, camera))
-            screen_coords = get_screen_coordinates(camera, world_coords)
-            points_screen.append(screen_coords)
-            points_world.append(camera_relative_coords)
+            if vert.index in indexes:
+                world_coords = obj.matrix_world @ vert.co
+                camera_relative_coords = camera.matrix_world.normalized().inverted() @ world_coords
+                visible_points.append(is_vertex_visible(obj, world_coords, camera))
+                screen_coords = get_screen_coordinates(camera, world_coords)
+                points_screen.append(screen_coords)
+                points_world.append(camera_relative_coords)
         frames_screen.append(points_screen)
         frames_world.append(points_world)
         points_screen = []
@@ -169,4 +171,4 @@ def export_all_ground_truth(obj, seed, directory):
     export_shape_keys(obj, seed, directory)
 
     print('###   Exporting monkey face weights   ###')
-    export_vertices_weight(obj, "monkey_face", out_dir)
+    export_vertices_weight(obj, "monkey_face", out_dir, indexes)

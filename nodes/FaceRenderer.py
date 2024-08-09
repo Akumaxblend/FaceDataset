@@ -35,7 +35,7 @@ class FaceRenderer(desc.CommandLineNode):
         ),
         desc.IntParam(
             name='seed',
-            label='Seed',
+            label='Start Frame',
             description='''requested frame to render by Blender''',
             value=1,
             range=(0, 1048574, 1),
@@ -50,6 +50,21 @@ class FaceRenderer(desc.CommandLineNode):
             range=(0, 999999, 1),
             uid=[0],
             group=""
+        ),
+        desc.BoolParam(
+            name='renderImage',
+            label='Render Image',
+            description='''Use this option to render image and not only ground truth''',
+            value=True,
+            uid=[],
+        ),
+        desc.File(
+            name="indexes",
+            label="Vertex Indexes Npy",
+            description='''Path to .npy of indexes of the vertices you want to export. Leave empty to export all.''',
+            value="",
+            uid=[],
+            group="",
         ),
         desc.IntParam(
             name='minFov',
@@ -98,7 +113,7 @@ class FaceRenderer(desc.CommandLineNode):
         ),
         desc.IntParam(
             name='worldAmplitudeX',
-            label='World Amplitude X',
+            label='Light Rotation Amplitude X',
             description='''rotation amplitude for the HDRI on the x axis (x=right)''',
             value=0,
             range=(0, 180, 1),
@@ -107,7 +122,7 @@ class FaceRenderer(desc.CommandLineNode):
         ),
         desc.IntParam(
             name='worldAmplitudeY',
-            label='World Amplitude Y',
+            label='Light Rotation Amplitude Y',
             description='''rotation amplitude for the HDRI on the y axis (y=camera axis)''',
             value=0,
             range=(0, 180, 1),
@@ -116,7 +131,7 @@ class FaceRenderer(desc.CommandLineNode):
         ),
         desc.IntParam(
             name='worldAmplitudeZ',
-            label='World Amplitude Z',
+            label='Light Rotation Amplitude Z',
             description='''rotation amplitude for the HDRI on the z axis (z=up)''',
             value=0,
             range=(0, 180, 1),
@@ -125,7 +140,7 @@ class FaceRenderer(desc.CommandLineNode):
         ),
         desc.FloatParam(
             name='modelRange',
-            label='3DMM range',
+            label='Morphology intensity',
             description='''multiplier for morphology range''',
             value=0.85,
             range=(0.0, 5.0, 0.05),
@@ -204,6 +219,7 @@ class FaceRenderer(desc.CommandLineNode):
         seed = chunk.node.seed.value
         start = seed + chunk.range.start
         chunkSize = chunk.range.blockSize
+        
 
         # if(start + chunkSize > chunk.node.batch.value):
         #     chunkSize = chunk.node.batch.value - start + 1
@@ -211,5 +227,5 @@ class FaceRenderer(desc.CommandLineNode):
         if(start + chunkSize > chunk.node.batch.value + seed):
             chunkSize = chunk.node.batch.value + seed - start
 
-        self.commandLine = "rez env blender -c 'blender -b {blendDirectoryValue} -P " + self.blenderRendererDirectory.as_posix() + " -- " + str(start) + " {outputFolderValue} {minFovValue} {maxFovValue} " + str(chunkSize) + " {modelRangeValue} {modelOffsetXValue} {modelOffsetYValue} {modelOffsetZValue} {expressionRangeMinValue} {expressionRangeMaxValue} {camAmplitudeXValue} {camAmplitudeYValue} {camAmplitudeZValue} {worldAmplitudeXValue} {worldAmplitudeYValue} {worldAmplitudeZValue}'"
+        self.commandLine = "rez env blender -c 'blender -b {blendDirectoryValue} -P " + self.blenderRendererDirectory.as_posix() + " -- " + str(start) + " {outputFolderValue} {minFovValue} {maxFovValue} " + str(chunkSize) + " {modelRangeValue} {modelOffsetXValue} {modelOffsetYValue} {modelOffsetZValue} {expressionRangeMinValue} {expressionRangeMaxValue} {camAmplitudeXValue} {camAmplitudeYValue} {camAmplitudeZValue} {worldAmplitudeXValue} {worldAmplitudeYValue} {worldAmplitudeZValue} {renderImageValue} {indexesValue}'"
         super(FaceRenderer, self).processChunk(chunk)

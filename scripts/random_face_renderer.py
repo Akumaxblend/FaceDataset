@@ -2,10 +2,11 @@ import bpy
 import random
 import sys
 from mathutils import Vector
+from math import sqrt
 import numpy as np
 import os
 
-dir = "/s/prods/research/io/in/from_prod/face_dataset/scripts/"
+dir = "/s/apps/users/vernam/FaceDataset/scripts/"
 if not dir in sys.path:
     sys.path.append(dir) # So blender looks up this directory while importing next scripts
 from vertices_positions_single_image import export_all_ground_truth
@@ -13,6 +14,7 @@ from vertices_positions_single_image import export_all_ground_truth
 MAX_FRAME = 1000000
 obj       = bpy.data.objects["Head"]
 cam       = bpy.data.cameras["Camera"]
+head_low  = bpy.data.objects["Head_decimated"]
 eye_left  = bpy.data.objects["eye_left_location_controller"]
 eye_right = bpy.data.objects["eye_right_location_controller"]
 
@@ -227,6 +229,34 @@ def set_world_rotation(world_name, amplitude_x, amplitude_y, amplitude_z, frame)
     sockets[1] = np.sin(7 * frame) * offseted_amplitude_y * 3.1415 / 180
     sockets[2] = np.sin(11 * frame) * offseted_amplitude_z * 3.1415 / 180
 
+def distance(obj1, vert1, obj2, vert2):
+    vector = obj2.matrix_world @ vert2.co -  obj1.matrix_world @ vert1.co
+    return sqrt(vector.x ** 2 + vector.y ** 2 + vector.z ** 2)
+        
+def closest_points(obj1, obj2, vertex_group_name):
+    verts_1 = obj1.data.vertices
+    verts_2 = obj2.data.vertices
+    minimum_distance = 1000
+    minimum_distance_index = 0
+    indexes = []
+    for v1 in verts_1:
+        if obj1.vertex_groups[vertex_group_name].weight(v1.index) >= 0.5:
+            for v2 in verts_2:
+                tmp_distance = distance(obj1, v1, obj2, v2)
+                if tmp_distance < minimum_distance:
+                    minimum_distance = tmp_distance
+                    minimum_distance_index = v2.index
+            indexes.append(minimum_distance_index)
+            minimum_distance = 1000
+    return indexes
+
+def apply_weights_to_indexes(obj, indexes, vertex_group_name):
+    all_verts = []
+    for v in obj.data.vertices:
+        all_verts.append(v.index)
+    obj.vertex_groups[vertex_group_name].add(all_verts, 0, 'REPLACE')
+    obj.vertex_groups[vertex_group_name].add(indexes, 1, 'REPLACE')
+
 
 ######################################### EXECUTION PART ###################################################
 
@@ -250,9 +280,28 @@ camera_amplitude_z = int(argv[13])
 world_amplitude_x = int(argv[14])
 world_amplitude_y = int(argv[15])
 world_amplitude_z = int(argv[16])
+render_image = argv[17]
 
-obj.matrix_world.translation += Vector((offset_x, offset_y, offset_z))
-set_camera_amplitude("camera_rotation_master", 0, camera_amplitude_x)
+# If user provided a path to .npy containging indexes to export, we load it. If not, we'll export all vertices.
+try:
+    indexes_path = argv[18]
+    indexes = np.load(indexes_path)
+except:
+    indexes = np.arange(0, len(obj.data.vertices),1)
+
+# # Comment this section if you want to manually select monkey_face vertices on the highpoly mesh 
+# monkey_face_indexes = (closest_points(head_low, obj, "monkey_face")) # We transfer the closest monkey face points from lowpoly to highpoly
+# apply_weights_to_indexes(obj, monkey_face_indexes, "monkey_face")
+
+# Lowpoly mesh delete, to avoid later raycast issues
+bpy.ops.object.select_all(action='DESELECT')
+head_low.select_set(True)
+bpy.ops.object.delete(use_global=False)
+
+
+obj.matrix_world.translation += Vector((offset_x, offset_y, offset_z)) # Model offset
+
+set_camera_amplitude("camera_rotation_master", 0, camera_amplitude_x) # Camera rotation amplitude
 set_camera_amplitude("camera_rotation_master", 1, camera_amplitude_y)
 set_camera_amplitude("camera_rotation_master", 2, camera_amplitude_z)
 
@@ -274,7 +323,8 @@ for i in range(seed, seed + batch):
     setup_masks_scene()
     #set_textures("color_shader", random_folder(textures_base_path)) # A reactiver si on reçoit les textures un jour :)
 
-    print('###   3D rendering frame '+str(random_frame)+'   ###')
-    bpy.ops.render.render(write_still=True)
+    if (render_image == "True"):
+        print('###   3D rendering frame '+str(random_frame)+'   ###')
+        bpy.ops.render.render(write_still=True)
 
-    export_all_ground_truth(obj, i, output_path)
+    export_all_ground_truth(obj, i, output_path, indexes)

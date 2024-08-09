@@ -45,7 +45,7 @@ class FaceCheckPlugin(PluginCommandLineNode):
         ),
         desc.IntParam(
             name='seed',
-            label='Seed',
+            label='Start Frame',
             description='''start frame to check''',
             value=1,
             range=(0, 1048574, 1),

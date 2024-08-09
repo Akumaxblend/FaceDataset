@@ -55,6 +55,8 @@ for i in range(seed, seed + batch):
 
     image_back.paste(image_top, (0,0), image_top)
     image_back.save(out_image_dir+f'/face_check_{i:06}.png', "png")
+    image_back.close()
+    image_top.close()
 
 # Method under allows to convert data from 3D camera relative points to 2d screen coordinates
 
